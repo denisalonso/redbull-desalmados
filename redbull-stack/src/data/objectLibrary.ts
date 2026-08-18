@@ -2,70 +2,84 @@ import { THEME } from '../theme.ts';
 import type { ObjectClass, ObjectDef } from '../core/types.ts';
 
 /**
- * RN-17/RN-18: toda hitbox é retângulo, nunca base curva.
- * RN-19: objetos variam em largura e altura — é a variedade de encaixe.
- * Placeholder: cor sólida + rótulo em vez de arte final (o fundo pode ser liso).
+ * Monta a URL de uma imagem colocada em public/latas.
+ * O BASE_URL faz o caminho continuar funcionando no Vite e no deploy.
  */
+function lataAsset(nomeArquivo: string): string {
+  return `${import.meta.env.BASE_URL}latas/${nomeArquivo}`;
+}
+
+/** Configuração visual e física de uma variante de lata. */
 export interface ObjectTemplate {
+  nome: string;
   classe: ObjectClass;
   larguraPx: number;
   alturaPx: number;
   densidade: number;
-  cor: string;
+  corFallback: string;
+  imagemUrl: string;
 }
 
 /**
- * Variedade moderada de propositalmente: largura/altura e densidade variam
- * pouco entre si (spread reduzido) para que o encaixe (RN-19) continue
- * exigindo atenção sem tornar a pilha caoticamente instável — objetos muito
- * desproporcionais entre si (um bem largo embaixo de um bem estreito) são a
- * causa mais comum de tombamento "injusto".
+ * Variantes comuns. Elas são escolhidas aleatoriamente quando o Spawner
+ * decide criar um objeto comum. Todas podem ter imagens diferentes.
  */
 export const COMUM_TEMPLATES: ObjectTemplate[] = [
   {
+    nome: 'Objeto',
     classe: 'comum',
-    larguraPx: 150,
-    alturaPx: 90,
-    densidade: 0.0017,
-    cor: THEME.color.primary.azulMarinho,
-  },
-  {
-    classe: 'comum',
-    larguraPx: 120,
-    alturaPx: 110,
+    larguraPx: 80,
+    alturaPx: 160,
     densidade: 0.0018,
-    cor: THEME.color.secondary.cinza,
+    corFallback: THEME.color.primary.azulMarinho,
+    imagemUrl: lataAsset('Objeto.png'),
+  },
+  
+];
+
+/**
+ * Variantes especiais. A regra atual do jogo faz objetos da classe "lata"
+ * recuperarem energia quando são empilhados corretamente.
+ */
+export const LATA_TEMPLATES: ObjectTemplate[] = [
+  {
+    nome: 'Tradicional',
+    classe: 'lata',
+    larguraPx: 80,
+    alturaPx: 160,
+    densidade: 0.0018,
+    corFallback: THEME.color.primary.amarelo,
+    imagemUrl: lataAsset('lata_tradicional.png'),
   },
   {
-    classe: 'comum',
-    larguraPx: 160,
-    alturaPx: 75,
-    densidade: 0.0016,
-    cor: THEME.color.secondary.prata,
+    nome: 'Tradicional sem açucar',
+    classe: 'lata',
+    larguraPx: 80,
+    alturaPx: 160,
+    densidade: 0.0018,
+    corFallback: THEME.color.secondary.ouro,
+    imagemUrl: lataAsset('lata-tradicional-sem-acucar.png'),
   },
   {
-    classe: 'comum',
-    larguraPx: 105,
-    alturaPx: 115,
-    densidade: 0.0019,
-    cor: THEME.color.primary.vermelho,
+    nome: 'Frutas Vermelhas',
+    classe: 'lata',
+    larguraPx: 80,
+    alturaPx: 160,
+    densidade: 0.0018,
+    corFallback: THEME.color.secondary.ouro,
+    imagemUrl: lataAsset('lata_frutas_vermelhas.png'),
   },
 ];
 
-/** RN-20: lata empilha e recarrega energia. */
-export const LATA_TEMPLATE: ObjectTemplate = {
-  classe: 'lata',
-  larguraPx: 80,
-  alturaPx: 115,
-  densidade: 0.002,
-  cor: THEME.color.primary.amarelo,
-};
-
-export function buildObjectDef(template: ObjectTemplate, id: string, label: string): ObjectDef {
+export function buildObjectDef(template: ObjectTemplate, id: string): ObjectDef {
   return {
     id,
     classe: template.classe,
-    sprite: { cor: template.cor, label },
+    sprite: {
+      cor: template.corFallback,
+      label: template.nome,
+      imagemUrl: template.imagemUrl,
+    },
     larguraPx: template.larguraPx,
     alturaPx: template.alturaPx,
     densidade: template.densidade,

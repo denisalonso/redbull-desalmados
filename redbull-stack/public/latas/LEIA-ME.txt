@@ -1,0 +1,11 @@
+Coloque nesta pasta os PNGs das variantes de lata, com fundo transparente:
+
+- lata-original.png
+- lata-sugarfree.png
+- lata-red-edition.png
+- lata-tropical.png
+- lata-energy.png
+- lata-energy-zero.png
+
+Para adicionar outra variante, copie um bloco em src/data/objectLibrary.ts e troque
+nome, imagemUrl, larguraPx, alturaPx e demais propriedades desejadas.

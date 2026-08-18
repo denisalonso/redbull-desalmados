@@ -47,6 +47,7 @@ export interface PiscadaState {
 export class Game {
   private readonly physics = new PhysicsWorld();
   private readonly spawner = new Spawner();
+  private readonly spriteImages = new Map<string, HTMLImageElement>();
 
   private aim: AimState | null = null;
   private readonly fallingBodies = new Map<Matter.Body, TrackedBody>();
@@ -346,6 +347,17 @@ export class Game {
     this.drawRect(ctx, aim.x, screenY, aim.def, 0);
   }
 
+  private getSpriteImage(imagemUrl: string): HTMLImageElement {
+    const cached = this.spriteImages.get(imagemUrl);
+    if (cached) return cached;
+
+    const image = new Image();
+    image.decoding = 'async';
+    image.src = imagemUrl;
+    this.spriteImages.set(imagemUrl, image);
+    return image;
+  }
+
   private drawRect(
     ctx: CanvasRenderingContext2D,
     x: number,
@@ -353,20 +365,53 @@ export class Game {
     def: ObjectDef,
     angle: number,
   ): void {
+    const boxWidth = def.larguraPx;
+    const boxHeight = def.alturaPx;
+    const image = this.getSpriteImage(def.sprite.imagemUrl);
+    const imageLoaded = image.complete && image.naturalWidth > 0 && image.naturalHeight > 0;
+
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(angle);
-    ctx.fillStyle = def.sprite.cor;
-    ctx.fillRect(-def.larguraPx / 2, -def.alturaPx / 2, def.larguraPx, def.alturaPx);
-    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(-def.larguraPx / 2, -def.alturaPx / 2, def.larguraPx, def.alturaPx);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
 
-    ctx.fillStyle = 'rgba(0,0,0,0.85)';
-    ctx.font = 'bold 16px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(def.sprite.label, 0, 0, def.larguraPx - 10);
+    if (imageLoaded) {
+      // Mantém a proporção original e encaixa a arte dentro da hitbox.
+      const scale = Math.min(boxWidth / image.naturalWidth, boxHeight / image.naturalHeight);
+      const drawWidth = image.naturalWidth * scale;
+      const drawHeight = image.naturalHeight * scale;
+
+      ctx.save();
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 5;
+
+      if (def.classe === 'lata') {
+        // As variantes que recuperam energia recebem um brilho identificador.
+        ctx.shadowColor = 'rgba(255, 220, 40, 0.95)';
+        ctx.shadowBlur = 24;
+      } else {
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+        ctx.shadowBlur = 8;
+      }
+
+      ctx.drawImage(image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
+      ctx.restore();
+    } else {
+      // Fallback visível enquanto a imagem carrega ou quando o arquivo não existe.
+      ctx.fillStyle = def.sprite.cor;
+      ctx.fillRect(-boxWidth / 2, -boxHeight / 2, boxWidth, boxHeight);
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(-boxWidth / 2, -boxHeight / 2, boxWidth, boxHeight);
+
+      ctx.fillStyle = 'rgba(0,0,0,0.85)';
+      ctx.font = 'bold 13px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(def.sprite.label, 0, 0, boxWidth - 8);
+    }
+
     ctx.restore();
   }
 }
