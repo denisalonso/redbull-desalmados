@@ -45,11 +45,6 @@ export class Viewport {
     this.viewportEl.style.transform = `scale(${scale})`;
   };
 
-  /** Aplica/remove o borrão de degradação visual (RN-28..31). Nunca afeta o HUD (RF-13). */
-  setBlur(px: number): void {
-    this.canvas.style.filter = px > 0 ? `blur(${px}px)` : '';
-  }
-
   clear(fillStyle: string): void {
     this.ctx.fillStyle = fillStyle;
     this.ctx.fillRect(0, 0, this.width, this.height);

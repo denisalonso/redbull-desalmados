@@ -5,9 +5,11 @@ import { PhysicsWorld } from '../physics/world.ts';
 import { BASE_THICKNESS_PX, createBaseBody, createDynamicBody } from '../physics/objects.ts';
 import { Spawner } from './spawner.ts';
 import { velocidadeHorizontal } from './difficulty.ts';
-import { aplicarDecaimento, recarregarComLata, borraoPx, intervaloPiscadaS } from './energy.ts';
+import { aplicarDecaimento, recarregarComLata } from './energy.ts';
 import { incrementarScore, partidaEncerrada } from './score.ts';
-import type { ObjectDef } from '../core/types.ts';
+import { getSprite, getLogoSprite } from '../render/assets.ts';
+import { THEME } from '../theme.ts';
+import type { ObjectDef, MotivoFim } from '../core/types.ts';
 
 interface AimState {
   def: ObjectDef;
@@ -31,13 +33,7 @@ interface TrackedBody {
 }
 
 export interface GameCallbacks {
-  onGameOver(score: number): void;
-}
-
-/** RN-28: sinaliza a piscada em progresso para a camada de apresentação (DOM). */
-export interface PiscadaState {
-  fechando: boolean;
-  progresso: number; // 0..1
+  onGameOver(score: number, motivo: MotivoFim): void;
 }
 
 /**
@@ -47,7 +43,6 @@ export interface PiscadaState {
 export class Game {
   private readonly physics = new PhysicsWorld();
   private readonly spawner = new Spawner();
-  private readonly spriteImages = new Map<string, HTMLImageElement>();
 
   private aim: AimState | null = null;
   private readonly fallingBodies = new Map<Matter.Body, TrackedBody>();
@@ -69,9 +64,13 @@ export class Game {
 
   private estado: 'jogando' | 'congelado' | 'encerrado' = 'jogando';
   private freezeTimerS = 0;
-
-  private piscadaTimerS = 0;
-  private piscada: PiscadaState | null = null;
+  private motivoFim: MotivoFim | null = null;
+  private fundoGradientes: {
+    base: CanvasGradient;
+    brilhoAmarelo: CanvasGradient;
+    brilhoAzul: CanvasGradient;
+    brilhoVermelho: CanvasGradient;
+  } | null = null;
 
   private readonly baseBody: Matter.Body;
 
@@ -91,7 +90,6 @@ export class Game {
       recorde: Math.max(this.recorde, this.score),
       energia: this.energia,
       tempoDecorridoS: this.tempoDecorridoS,
-      piscada: this.piscada,
     };
   }
 
@@ -108,25 +106,24 @@ export class Game {
       this.freezeTimerS -= dtS;
       if (this.freezeTimerS <= 0) {
         this.estado = 'encerrado';
-        this.callbacks.onGameOver(this.score);
+        this.callbacks.onGameOver(this.score, this.motivoFim ?? 'queda');
       }
       return;
     }
 
     this.tempoDecorridoS += dtS;
     this.energia = aplicarDecaimento(this.energia, this.tempoDecorridoS, dtS);
-    this.updatePiscada(dtS);
 
     // Energia zerada encerra a partida: sem objeto se soltando sozinho (RN-35
     // removida), a pressão de tempo só existe se demorar demais realmente custar
     // a partida — não só borrar a tela indefinidamente.
     if (this.energia <= 0) {
-      this.iniciarCongelamento();
+      this.iniciarCongelamento('energia');
       return;
     }
 
     if (this.tempoDecorridoS >= CONFIG.TETO_ABSOLUTO_S) {
-      this.iniciarCongelamento();
+      this.iniciarCongelamento('teto');
       return;
     }
 
@@ -139,16 +136,14 @@ export class Game {
 
   render(): void {
     const ctx = this.viewport.ctx;
-    ctx.fillStyle = '#1c1c1c';
-    ctx.fillRect(0, 0, this.viewport.width, this.viewport.height);
+    this.drawFundoDecorado(ctx);
+    this.drawLogoFundo(ctx);
 
     this.drawBase(ctx);
     for (const { body, def } of this.stackBodies) this.drawBody(ctx, body, def);
     for (const { body, def } of this.fallingBodies.values()) this.drawBody(ctx, body, def);
 
     if (this.aim) this.drawAim(ctx, this.aim);
-
-    this.viewport.setBlur(borraoPx(this.energia));
   }
 
   destroy(): void {
@@ -269,12 +264,13 @@ export class Game {
     if (body === this.lastDroppedBody) this.lastDroppedResolved = true;
 
     if (partidaEncerrada(this.quedas, CONFIG.QUEDAS_PERMITIDAS)) {
-      this.iniciarCongelamento();
+      this.iniciarCongelamento('queda');
     }
   }
 
-  private iniciarCongelamento(): void {
+  private iniciarCongelamento(motivo: MotivoFim): void {
     if (this.estado !== 'jogando') return;
+    this.motivoFim = motivo;
     this.estado = 'congelado';
     this.freezeTimerS = CONFIG.FREEZE_DERROTA_S; // RF-09: derrota legível antes de trocar de tela.
   }
@@ -293,48 +289,103 @@ export class Game {
     return worldY - this.cameraTopWorldY + CONFIG.APRESENTACAO.TOP_SCREEN_Y;
   }
 
-  // --- Degradação visual (pálpebra) ----------------------------------------
-
-  private updatePiscada(dtS: number): void {
-    const intervalo = intervaloPiscadaS(this.energia);
-    if (!Number.isFinite(intervalo)) {
-      this.piscada = null;
-      this.piscadaTimerS = 0;
-      return;
-    }
-
-    this.piscadaTimerS += dtS;
-    const cicloS = CONFIG.PISCADA_DURACAO_S * 2;
-    if (this.piscadaTimerS < intervalo) {
-      this.piscada = null;
-      return;
-    }
-
-    const tCiclo = this.piscadaTimerS - intervalo;
-    if (tCiclo >= cicloS) {
-      this.piscadaTimerS = 0;
-      this.piscada = null;
-      return;
-    }
-
-    const fechando = tCiclo < CONFIG.PISCADA_DURACAO_S;
-    const progresso = fechando
-      ? tCiclo / CONFIG.PISCADA_DURACAO_S
-      : (tCiclo - CONFIG.PISCADA_DURACAO_S) / CONFIG.PISCADA_DURACAO_S;
-    this.piscada = { fechando, progresso };
-  }
-
   // --- Desenho (placeholders: retângulos coloridos + rótulo) ---------------
 
+  /**
+   * Mesmo visual da tela de início (gradiente escuro + brilhos coloridos nos
+   * cantos), pra não ter uma quebra de estilo entre a intro e o jogo. Fixo na
+   * tela — não acompanha a câmera. Gradientes calculados uma vez só (não
+   * mudam com o viewport) e reaproveitados a cada frame.
+   */
+  private drawFundoDecorado(ctx: CanvasRenderingContext2D): void {
+    if (!this.fundoGradientes) this.fundoGradientes = this.criarFundoGradientes(ctx);
+    const { base, brilhoAmarelo, brilhoAzul, brilhoVermelho } = this.fundoGradientes;
+    const w = this.viewport.width;
+    const h = this.viewport.height;
+
+    ctx.fillStyle = base;
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = brilhoAmarelo;
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = brilhoAzul;
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = brilhoVermelho;
+    ctx.fillRect(0, 0, w, h);
+  }
+
+  private criarFundoGradientes(ctx: CanvasRenderingContext2D): {
+    base: CanvasGradient;
+    brilhoAmarelo: CanvasGradient;
+    brilhoAzul: CanvasGradient;
+    brilhoVermelho: CanvasGradient;
+  } {
+    const w = this.viewport.width;
+    const h = this.viewport.height;
+
+    const base = ctx.createLinearGradient(0, 0, w * 0.5, h);
+    base.addColorStop(0, '#080808');
+    base.addColorStop(0.38, '#0b0b0b');
+    base.addColorStop(0.7, '#050505');
+    base.addColorStop(1, '#100205');
+
+    const brilho = (x: number, y: number, raio: number, cor: string): CanvasGradient => {
+      const g = ctx.createRadialGradient(x, y, 0, x, y, raio);
+      g.addColorStop(0, cor);
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      return g;
+    };
+
+    return {
+      base,
+      brilhoAmarelo: brilho(w * 0.5, 0, w * 0.55, 'rgba(253,217,0,0.13)'),
+      brilhoAzul: brilho(w, h * 0.7, w * 0.6, 'rgba(54,113,198,0.18)'),
+      brilhoVermelho: brilho(0, h * 0.85, w * 0.55, 'rgba(227,1,24,0.14)'),
+    };
+  }
+
+  /** Marca d'água fixa na tela (não acompanha a câmera/pilha), centralizada e no terço superior. */
+  private drawLogoFundo(ctx: CanvasRenderingContext2D): void {
+    const logo = getLogoSprite();
+    if (!logo) return;
+    const larguraDesejada = 380;
+    const escala = larguraDesejada / logo.naturalWidth;
+    const w = larguraDesejada;
+    const h = logo.naturalHeight * escala;
+    const x = this.viewport.width / 2;
+    const y = 340;
+    ctx.save();
+    ctx.globalAlpha = 0.16;
+    ctx.drawImage(logo, x - w / 2, y - h / 2, w, h);
+    ctx.restore();
+  }
+
+  /** Plataforma no mesmo estilo "vidro escuro" da intro — painel translúcido, sombra e uma linha de brilho no topo. */
   private drawBase(ctx: CanvasRenderingContext2D): void {
     const screenY = this.worldToScreenY(this.baseBody.position.y);
-    ctx.fillStyle = '#3a3a3a';
-    ctx.fillRect(
-      this.baseBody.position.x - CONFIG.LARGURA_BASE_PX / 2,
-      screenY - BASE_THICKNESS_PX / 2,
-      CONFIG.LARGURA_BASE_PX,
-      BASE_THICKNESS_PX,
-    );
+    const x = this.baseBody.position.x - CONFIG.LARGURA_BASE_PX / 2;
+    const y = screenY - BASE_THICKNESS_PX / 2;
+    const w = CONFIG.LARGURA_BASE_PX;
+    const h = BASE_THICKNESS_PX;
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+    ctx.shadowBlur = 20;
+    ctx.shadowOffsetY = 6;
+    this.roundedRectPath(ctx, x, y, w, h, 10);
+    ctx.fillStyle = 'rgba(18, 18, 22, 0.72)';
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(253, 217, 0, 0.65)';
+    ctx.shadowBlur = 8;
+    ctx.strokeStyle = 'rgba(253, 217, 0, 0.85)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x + 10, y + 1);
+    ctx.lineTo(x + w - 10, y + 1);
+    ctx.stroke();
+    ctx.restore();
   }
 
   private drawBody(ctx: CanvasRenderingContext2D, body: Matter.Body, def: ObjectDef): void {
@@ -347,17 +398,6 @@ export class Game {
     this.drawRect(ctx, aim.x, screenY, aim.def, 0);
   }
 
-  private getSpriteImage(imagemUrl: string): HTMLImageElement {
-    const cached = this.spriteImages.get(imagemUrl);
-    if (cached) return cached;
-
-    const image = new Image();
-    image.decoding = 'async';
-    image.src = imagemUrl;
-    this.spriteImages.set(imagemUrl, image);
-    return image;
-  }
-
   private drawRect(
     ctx: CanvasRenderingContext2D,
     x: number,
@@ -365,53 +405,130 @@ export class Game {
     def: ObjectDef,
     angle: number,
   ): void {
-    const boxWidth = def.larguraPx;
-    const boxHeight = def.alturaPx;
-    const image = this.getSpriteImage(def.sprite.imagemUrl);
-    const imageLoaded = image.complete && image.naturalWidth > 0 && image.naturalHeight > 0;
-
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(angle);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
 
-    if (imageLoaded) {
-      // Mantém a proporção original e encaixa a arte dentro da hitbox.
-      const scale = Math.min(boxWidth / image.naturalWidth, boxHeight / image.naturalHeight);
-      const drawWidth = image.naturalWidth * scale;
-      const drawHeight = image.naturalHeight * scale;
-
-      ctx.save();
-      ctx.shadowOffsetX = 0;
-      ctx.shadowOffsetY = 5;
-
-      if (def.classe === 'lata') {
-        // As variantes que recuperam energia recebem um brilho identificador.
-        ctx.shadowColor = 'rgba(255, 220, 40, 0.95)';
-        ctx.shadowBlur = 24;
-      } else {
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
-        ctx.shadowBlur = 8;
-      }
-
-      ctx.drawImage(image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
-      ctx.restore();
+    const sprite = getSprite(def.classe, def.sprite.imagemKey);
+    if (sprite && def.classe === 'lata') {
+      this.drawLataSprite(ctx, sprite, def);
+    } else if (sprite) {
+      this.drawComumSprite(ctx, sprite, def);
     } else {
-      // Fallback visível enquanto a imagem carrega ou quando o arquivo não existe.
-      ctx.fillStyle = def.sprite.cor;
-      ctx.fillRect(-boxWidth / 2, -boxHeight / 2, boxWidth, boxHeight);
-      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(-boxWidth / 2, -boxHeight / 2, boxWidth, boxHeight);
-
-      ctx.fillStyle = 'rgba(0,0,0,0.85)';
-      ctx.font = 'bold 13px system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(def.sprite.label, 0, 0, boxWidth - 8);
+      this.drawPlaceholder(ctx, def);
     }
-
     ctx.restore();
+  }
+
+  /**
+   * O sprite é a lata em pé (retrato) — gira 90° só na hora de desenhar pra
+   * encaixar deitada no hitbox; o ângulo de física já foi aplicado antes.
+   * Brilho ao redor (shadowBlur segue a silhueta via alpha da imagem): a
+   * lata é o objeto especial — recarrega energia, as outras não.
+   */
+  private drawLataSprite(
+    ctx: CanvasRenderingContext2D,
+    sprite: HTMLImageElement,
+    def: ObjectDef,
+  ): void {
+    ctx.rotate(Math.PI / 2);
+    ctx.shadowColor = 'rgba(255, 212, 0, 0.85)';
+    ctx.shadowBlur = 24;
+    ctx.drawImage(sprite, -def.alturaPx / 2, -def.larguraPx / 2, def.alturaPx, def.larguraPx);
+  }
+
+  /** Caminho de retângulo com cantos arredondados, reutilizado pelo fundo e pela borda do cartão. */
+  private roundedRectPath(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    r: number,
+  ): void {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.arcTo(x + w, y, x + w, y + r, r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+    ctx.lineTo(x + r, y + h);
+    ctx.arcTo(x, y + h, x, y + h - r, r);
+    ctx.lineTo(x, y + r);
+    ctx.arcTo(x, y, x + r, y, r);
+    ctx.closePath();
+  }
+
+  /** Cartão "vidro escuro" — mesma linguagem da intro (painel translúcido, sombra, borda com brilho). */
+  private drawCartaoFundo(ctx: CanvasRenderingContext2D, w: number, h: number, cor: string): void {
+    const raio = 16;
+    const espessuraBorda = 2;
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
+    ctx.shadowBlur = 18;
+    ctx.shadowOffsetY = 8;
+    this.roundedRectPath(ctx, -w / 2, -h / 2, w, h, raio);
+    ctx.fillStyle = 'rgba(18, 18, 22, 0.62)';
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    ctx.shadowColor = cor;
+    ctx.shadowBlur = 10;
+    const inset = espessuraBorda / 2;
+    this.roundedRectPath(ctx, -w / 2 + inset, -h / 2 + inset, w - espessuraBorda, h - espessuraBorda, raio - inset);
+    ctx.strokeStyle = cor;
+    ctx.lineWidth = espessuraBorda;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /**
+   * Cartão branco com borda na cor do template, ícone à esquerda e o nome à
+   * direita — a ilustração sozinha (sem cartão) não lia como empilhável, e a
+   * faixa de rótulo no topo (versão anterior) ficou poluída. Tamanho do
+   * cartão é padronizado (COMUM_LARGURA_PX/ALTURA_PX em objectLibrary.ts).
+   */
+  private drawComumSprite(ctx: CanvasRenderingContext2D, sprite: HTMLImageElement, def: ObjectDef): void {
+    const w = def.larguraPx;
+    const h = def.alturaPx;
+    const cor = def.sprite.cor;
+
+    this.drawCartaoFundo(ctx, w, h, cor);
+
+    // Ícone: área quadrada à esquerda, deslocada um pouco pra direita, sem distorcer (letterbox).
+    const pad = 10;
+    const deslocamentoIcone = 10;
+    const imgSide = h - pad * 2;
+    const imgCenterX = -w / 2 + pad + imgSide / 2 + deslocamentoIcone;
+
+    const escala = Math.min(imgSide / sprite.naturalWidth, imgSide / sprite.naturalHeight);
+    const imgW = sprite.naturalWidth * escala;
+    const imgH = sprite.naturalHeight * escala;
+    ctx.drawImage(sprite, imgCenterX - imgW / 2, -imgH / 2, imgW, imgH);
+
+    // Nome: resto do cartão à direita do ícone.
+    const textX = -w / 2 + pad + imgSide + deslocamentoIcone + pad;
+    const textAreaW = w / 2 - pad - textX;
+    ctx.fillStyle = cor;
+    ctx.font = `bold 15px ${THEME.font.family}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(def.sprite.label, textX + textAreaW / 2, 0, textAreaW);
+  }
+
+  /** Mesmo cartão branco/borda colorida do sprite real, só sem o ícone (antes da imagem carregar). */
+  private drawPlaceholder(ctx: CanvasRenderingContext2D, def: ObjectDef): void {
+    const w = def.larguraPx;
+    const h = def.alturaPx;
+
+    this.drawCartaoFundo(ctx, w, h, def.sprite.cor);
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+    ctx.font = `bold 15px ${THEME.font.family}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(def.sprite.label, 0, 0, w - 16);
   }
 }

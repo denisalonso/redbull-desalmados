@@ -2,10 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { CONFIG } from '../../config.ts';
 import {
   aplicarDecaimento,
-  borraoPx,
+  avisoLateralIntensidade,
   decaimentoPorSegundo,
-  intervaloPiscadaS,
-  nivelDegradacao,
   recarregarComLata,
 } from '../energy.ts';
 
@@ -29,23 +27,21 @@ describe('energy — recarga por lata (RN-25)', () => {
   });
 });
 
-describe('energy — degradação visual (seção 3 do GDD)', () => {
-  it('classifica níveis pelos limiares configurados', () => {
-    expect(nivelDegradacao(100)).toBe('nitido');
-    expect(nivelDegradacao(CONFIG.LIMIAR_BORRAO)).toBe('nitido');
-    expect(nivelDegradacao(CONFIG.LIMIAR_BORRAO - 1)).toBe('borrao-leve');
-    expect(nivelDegradacao(CONFIG.LIMIAR_PISCADA)).toBe('borrao-leve');
-    expect(nivelDegradacao(CONFIG.LIMIAR_PISCADA - 1)).toBe('borrao-pesado');
+describe('energy — aviso lateral de energia baixa (RN-28..31)', () => {
+  it('fica em zero acima de LIMIAR_BORRAO e sobe até 1 em energia zero', () => {
+    expect(avisoLateralIntensidade(100)).toBe(0);
+    expect(avisoLateralIntensidade(CONFIG.LIMIAR_BORRAO)).toBe(0);
+    expect(avisoLateralIntensidade(0)).toBeCloseTo(1);
   });
 
-  it('não borra acima de LIMIAR_BORRAO e satura no máximo pesado em energia zero', () => {
-    expect(borraoPx(100)).toBe(0);
-    expect(borraoPx(0)).toBeCloseTo(CONFIG.BORRAO_MAX_PESADO_PX);
+  it('cruza a metade da intensidade em LIMIAR_PISCADA', () => {
+    expect(avisoLateralIntensidade(CONFIG.LIMIAR_PISCADA)).toBeCloseTo(0.5);
   });
 
-  it('nunca pisca acima de LIMIAR_PISCADA e respeita o teto de segurança de 1.5Hz (RN-30)', () => {
-    expect(intervaloPiscadaS(CONFIG.LIMIAR_PISCADA)).toBe(Infinity);
-    const intervaloMinimo = intervaloPiscadaS(0);
-    expect(intervaloMinimo).toBeGreaterThanOrEqual(1 / CONFIG.PISCADA_FREQ_MAX_HZ);
+  it('cresce de forma monotônica conforme a energia cai (nunca oscila — RNF-10)', () => {
+    const amostras = [100, 80, 60, 45, 30, 15, 0].map(avisoLateralIntensidade);
+    for (let i = 1; i < amostras.length; i++) {
+      expect(amostras[i]).toBeGreaterThanOrEqual(amostras[i - 1]);
+    }
   });
 });

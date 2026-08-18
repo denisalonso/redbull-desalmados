@@ -36,7 +36,11 @@ export function createDynamicBody(def: ObjectDef, x: number, y: number): Matter.
   });
   Matter.Body.setVelocity(body, { x: 0, y: 0 });
   // Mais resistência a girar = torre mais tolerante a inclinação acumulada,
-  // sem mudar atrito/restituição. Ver CONFIG.FISICA_AJUSTE.
-  Matter.Body.setInertia(body, body.inertia * CONFIG.FISICA_AJUSTE.MULTIPLICADOR_INERCIA);
+  // sem mudar atrito/restituição. Ver CONFIG.FISICA_AJUSTE. A lata soma um
+  // extra por ser a mais estreita/alta da biblioteca (mais instável).
+  const multiplicador =
+    CONFIG.FISICA_AJUSTE.MULTIPLICADOR_INERCIA *
+    (def.classe === 'lata' ? CONFIG.FISICA_AJUSTE.MULTIPLICADOR_INERCIA_LATA_EXTRA : 1);
+  Matter.Body.setInertia(body, body.inertia * multiplicador);
   return body;
 }

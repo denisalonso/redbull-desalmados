@@ -2,83 +2,130 @@ import { THEME } from '../theme.ts';
 import type { ObjectClass, ObjectDef } from '../core/types.ts';
 
 /**
- * Monta a URL de uma imagem colocada em public/latas.
- * O BASE_URL faz o caminho continuar funcionando no Vite e no deploy.
+ * RN-17/RN-18: toda hitbox é retângulo, nunca base curva.
+ * RN-19 original: objetos variavam em largura e altura como variedade de
+ * encaixe — desvio deliberado abaixo (COMUM_TEMPLATES): tamanho agora é
+ * padronizado, a variedade ficou só visual (ícone + cor).
  */
-function lataAsset(nomeArquivo: string): string {
-  return `${import.meta.env.BASE_URL}latas/${nomeArquivo}`;
-}
-
-/** Configuração visual e física de uma variante de lata. */
 export interface ObjectTemplate {
-  nome: string;
   classe: ObjectClass;
   larguraPx: number;
   alturaPx: number;
   densidade: number;
-  corFallback: string;
-  imagemUrl: string;
+  cor: string;
+  label: string;
+  /** Arquivo em public/<classe>-<imagemKey>.png. Sem imagem carregada, cai pro placeholder (cor + label). */
+  imagemKey?: string;
 }
 
 /**
- * Variantes comuns. Elas são escolhidas aleatoriamente quando o Spawner
- * decide criar um objeto comum. Todas podem ter imagens diferentes.
+ * Tamanho padronizado pra todos os objetos comuns — formato bem retangular
+ * (base bem maior que altura) pra estabilidade máxima. Desvio deliberado de
+ * RN-19 (variedade de largura/altura): a pedido dela, a variedade agora é só
+ * visual (ícone + cor), não mais de geometria — a variação de tamanho estava
+ * atrapalhando a leitura dos cartões brancos com borda colorida.
  */
+const COMUM_LARGURA_PX = 220;
+const COMUM_ALTURA_PX = 115;
+
+/** Paleta de borda dos cartões — só estas 3 cores, nada do THEME genérico aqui. */
+const BORDA_VERMELHO = '#e30118';
+const BORDA_AMARELO = '#fdd900';
+const BORDA_AZUL = '#3671c6';
+
+/** Densidade varia um pouco (mesmo tamanho, peso levemente diferente). */
 export const COMUM_TEMPLATES: ObjectTemplate[] = [
   {
-    nome: 'Objeto',
     classe: 'comum',
-    larguraPx: 80,
-    alturaPx: 160,
-    densidade: 0.0018,
-    corFallback: THEME.color.primary.azulMarinho,
-    imagemUrl: lataAsset('Objeto.png'),
+    larguraPx: COMUM_LARGURA_PX,
+    alturaPx: COMUM_ALTURA_PX,
+    densidade: 0.0017,
+    cor: BORDA_AZUL,
+    label: 'TRABALHO',
+    imagemKey: 'trabalho',
   },
-  
+  {
+    classe: 'comum',
+    larguraPx: COMUM_LARGURA_PX,
+    alturaPx: COMUM_ALTURA_PX,
+    densidade: 0.0018,
+    cor: BORDA_AMARELO,
+    label: 'FESTAS',
+    imagemKey: 'festas',
+  },
+  {
+    classe: 'comum',
+    larguraPx: COMUM_LARGURA_PX,
+    alturaPx: COMUM_ALTURA_PX,
+    densidade: 0.0016,
+    cor: BORDA_VERMELHO,
+    label: 'ESPORTES',
+    imagemKey: 'esportes',
+  },
+  {
+    classe: 'comum',
+    larguraPx: COMUM_LARGURA_PX,
+    alturaPx: COMUM_ALTURA_PX,
+    densidade: 0.0019,
+    cor: BORDA_AZUL,
+    label: 'JOGOS',
+    imagemKey: 'jogos',
+  },
+  {
+    classe: 'comum',
+    larguraPx: COMUM_LARGURA_PX,
+    alturaPx: COMUM_ALTURA_PX,
+    densidade: 0.0017,
+    cor: BORDA_AMARELO,
+    label: 'FITNESS',
+    imagemKey: 'fitness',
+  },
+  {
+    classe: 'comum',
+    larguraPx: COMUM_LARGURA_PX,
+    alturaPx: COMUM_ALTURA_PX,
+    densidade: 0.0018,
+    cor: BORDA_VERMELHO,
+    label: 'ESTUDOS',
+    imagemKey: 'estudos',
+  },
+  {
+    classe: 'comum',
+    larguraPx: COMUM_LARGURA_PX,
+    alturaPx: COMUM_ALTURA_PX,
+    densidade: 0.0019,
+    cor: BORDA_AZUL,
+    label: 'DIRIGIR',
+    imagemKey: 'dirigir',
+  },
 ];
 
 /**
- * Variantes especiais. A regra atual do jogo faz objetos da classe "lata"
- * recuperarem energia quando são empilhados corretamente.
+ * RN-20: lata empilha e recarrega energia. Deitada (não em pé) — proporção
+ * bate com os sprites reais (public/lata-*.png, ~900px de altura em pé,
+ * razão ~2,55:1 deitada — as 5 artes ficam bem próximas entre si) pra não
+ * distorcer a imagem no encaixe.
  */
-export const LATA_TEMPLATES: ObjectTemplate[] = [
-  {
-    nome: 'Tradicional',
-    classe: 'lata',
-    larguraPx: 80,
-    alturaPx: 160,
-    densidade: 0.0018,
-    corFallback: THEME.color.primary.amarelo,
-    imagemUrl: lataAsset('lata_tradicional.png'),
-  },
-  {
-    nome: 'Tradicional sem açucar',
-    classe: 'lata',
-    larguraPx: 80,
-    alturaPx: 160,
-    densidade: 0.0018,
-    corFallback: THEME.color.secondary.ouro,
-    imagemUrl: lataAsset('lata-tradicional-sem-acucar.png'),
-  },
-  {
-    nome: 'Frutas Vermelhas',
-    classe: 'lata',
-    larguraPx: 80,
-    alturaPx: 160,
-    densidade: 0.0018,
-    corFallback: THEME.color.secondary.ouro,
-    imagemUrl: lataAsset('lata_frutas_vermelhas.png'),
-  },
-];
+export const LATA_TEMPLATE: ObjectTemplate = {
+  classe: 'lata',
+  larguraPx: 235,
+  alturaPx: 92,
+  densidade: 0.002,
+  cor: THEME.color.primary.amarelo,
+  label: 'RED BULL',
+};
 
-export function buildObjectDef(template: ObjectTemplate, id: string): ObjectDef {
+/** Sabores disponíveis (public/lata-<key>.png) — um é sorteado por lata. */
+export const LATA_IMAGENS = ['nectarina', 'classica', 'melao', 'tropical', 'zero'] as const;
+
+export function buildObjectDef(template: ObjectTemplate, id: string, imagemKeyOverride?: string): ObjectDef {
   return {
     id,
     classe: template.classe,
     sprite: {
-      cor: template.corFallback,
-      label: template.nome,
-      imagemUrl: template.imagemUrl,
+      cor: template.cor,
+      label: template.label,
+      imagemKey: imagemKeyOverride ?? template.imagemKey,
     },
     larguraPx: template.larguraPx,
     alturaPx: template.alturaPx,

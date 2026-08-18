@@ -24,14 +24,13 @@ export const CONFIG = {
   LIMIAR_PISCADA: 30,
   TEMPO_COLAPSO_S: 75,
 
-  // Degradação visual
-  BORRAO_MAX_LEVE_PX: 4, // 60→30 de energia
-  BORRAO_MAX_PESADO_PX: 8, // 30→0 de energia
-  PISCADA_DURACAO_S: 0.35, // fecha em 0.35s, abre em 0.35s
-  PISCADA_FREQ_MIN_S: 6, // a 60 de energia (menos frequente)
-  PISCADA_FREQ_MAX_S: 2.5, // a 0 de energia (mais frequente)
-  PISCADA_FREQ_MAX_HZ: 1.5, // teto de segurança fotossensível (RN-30)
-  OBSCURECIMENTO_MAX: 0.85, // RN-31: nunca 100% cega
+  // Aviso visual de energia baixa (RN-28..31): desvio do GDD original — em
+  // vez de embaçar a tela e piscar uma "pálpebra" (RN-29/30), uma luz
+  // vermelha nas laterais cresce em intensidade conforme a energia cai,
+  // entre LIMIAR_BORRAO e 0. É contínuo, nunca pisca — satisfaz o teto de
+  // segurança fotossensível (RNF-10, "nenhuma oscilação acima de 1,5Hz") por
+  // construção, não por um teto de frequência que precisa ser respeitado.
+  AVISO_OPACIDADE_MAX: 0.65,
 
   // Biblioteca de objetos
   PROPORCAO_LATAS: 4, // 1 a cada 4
@@ -47,7 +46,9 @@ export const CONFIG = {
   LIMIAR_QUEDA_PX: 250, // abaixo do topo da pilha
 
   // Pilha
-  LARGURA_BASE_PX: 280,
+  // Acompanha o aumento de largura dos objetos (data/objectLibrary.ts) —
+  // mantém a mesma margem proporcional de apoio de antes.
+  LARGURA_BASE_PX: 370,
 
   // Congelamento de derrota (legibilidade)
   FREEZE_DERROTA_S: 0.3,
@@ -96,9 +97,15 @@ export const CONFIG = {
    * conforme a pilha cresce, sem deixar a física "grudenta" no geral.
    */
   FISICA_AJUSTE: {
-    MULTIPLICADOR_INERCIA: 14,
+    // Recuo pequeno e deliberado a partir de 20: ela achou o resultado
+    // anterior "quase ótimo", só um pouco estável demais.
+    MULTIPLICADOR_INERCIA: 17,
     // Um pouco de "ar" a mais amortece a oscilação residual que se acumula
     // pilha acima — padrão do Matter.js é 0.01.
-    FRICTION_AIR: 0.03,
+    FRICTION_AIR: 0.038,
+    // A lata é o objeto de maior razão altura/largura da biblioteca (a mais
+    // estreita e mais alta) — a mais instável geometricamente, então recebe
+    // resistência a girar extra além do MULTIPLICADOR_INERCIA geral.
+    MULTIPLICADOR_INERCIA_LATA_EXTRA: 4,
   },
 } as const;

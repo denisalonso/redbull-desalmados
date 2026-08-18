@@ -3,25 +3,27 @@ import { FSM } from './core/fsm.ts';
 import { GameLoop } from './core/loop.ts';
 import { Viewport } from './render/canvas.ts';
 import { Hud } from './render/hud.ts';
-import { Degradation } from './render/degradation.ts';
+import { WarningGlow } from './render/warningGlow.ts';
 import { Game } from './game/Game.ts';
+import { avisoLateralIntensidade } from './game/energy.ts';
 import { RankingStore } from './data/ranking.ts';
 import { IntroScreen } from './screens/IntroScreen.ts';
 import { NameScreen } from './screens/NameScreen.ts';
 import { RankingScreen, type RankingShowPayload } from './screens/RankingScreen.ts';
 import { setupKiosk } from './kiosk/kiosk.ts';
-import type { RankingEntry } from './core/types.ts';
+import type { RankingEntry, MotivoFim } from './core/types.ts';
 
 setupKiosk();
 
 const viewport = new Viewport();
 const hud = new Hud();
-const degradation = new Degradation();
+const warningGlow = new WarningGlow();
 const rankingStore = new RankingStore();
 
 const fsm = new FSM('INICIO');
 let game: Game | null = null;
 let lastScore = 0;
+let lastMotivo: MotivoFim = 'queda';
 
 function recordeAtual(): number {
   return rankingStore.top(1)[0]?.score ?? 0;
@@ -58,8 +60,9 @@ fsm.register('JOGO', {
     game = new Game(
       viewport,
       {
-        onGameOver: (score) => {
+        onGameOver: (score, motivo) => {
           lastScore = score;
+          lastMotivo = motivo;
           fsm.transition('NOME');
         },
       },
@@ -70,13 +73,12 @@ fsm.register('JOGO', {
     game?.destroy();
     game = null;
     hud.hide();
-    degradation.reset();
-    viewport.setBlur(0);
+    warningGlow.reset();
   },
 });
 
 fsm.register('NOME', {
-  onEnter: () => nameScreen.show(lastScore),
+  onEnter: () => nameScreen.show(lastScore, lastMotivo),
   onExit: () => nameScreen.hide(),
 });
 
@@ -97,7 +99,7 @@ const loop = new GameLoop(
     game.render();
     const snapshot = game.getSnapshot();
     hud.update(snapshot);
-    degradation.update(snapshot.piscada);
+    warningGlow.update(avisoLateralIntensidade(snapshot.energia));
   },
 );
 loop.start();

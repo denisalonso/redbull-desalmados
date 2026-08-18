@@ -30,14 +30,22 @@ export class Hud {
         <span class="hud-score" data-hud="score">0</span>
       </div>
       <div class="hud-energy">
-        <span class="hud-energy-icon">⚡</span>
-        <div class="hud-energy-track"><div class="hud-energy-fill" data-hud="energyFill"></div></div>
+        <div class="hud-energy-track">
+          <div class="hud-energy-fill" data-hud="energyFill">
+            <img class="hud-energy-bolt" src="/energia-raio.png" alt="" />
+          </div>
+        </div>
       </div>
     `;
 
     this.scoreEl = this.query('score');
     this.recordeEl = this.query('recorde');
     this.energyFillEl = this.query('energyFill');
+
+    // Sem isso, o HUD fica visível (display:block é o padrão do navegador)
+    // por trás da intro no primeiro carregamento, até o primeiro show()/hide()
+    // do fluxo JOGO acontecer.
+    this.hide();
   }
 
   private query(name: string): HTMLElement {

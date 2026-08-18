@@ -13,8 +13,8 @@ describe('difficulty — eixo velocidade (RN-33)', () => {
     );
   });
 
-  it('nunca ultrapassa VELOCIDADE_MAX_X além do teto de objetos', () => {
-    expect(velocidadeHorizontal(CONFIG.OBJETOS_PARA_VELOCIDADE_MAX + 50)).toBeCloseTo(
+  it('continua subindo além de OBJETOS_PARA_VELOCIDADE_MAX — sem teto, de propósito', () => {
+    expect(velocidadeHorizontal(CONFIG.OBJETOS_PARA_VELOCIDADE_MAX * 2)).toBeGreaterThan(
       CONFIG.VELOCIDADE_MAX_X,
     );
   });

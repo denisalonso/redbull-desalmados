@@ -1,10 +1,14 @@
 /**
  * Cores e tipografia centralizadas (RNF-08). Nenhum valor de cor deve viver dentro de componente.
  *
- * PLACEHOLDER: HEX exatos, fontes e ícones oficiais estão bloqueados pelo briefing
- * (GDD seção 13 — "puxar do DRIVE"). Os valores abaixo são aproximações de
- * "vermelho, azul-marinho, amarelo / ouro, cinza, prata" só para destravar a vertical slice.
- * Trocar por HEX oficiais assim que o briefing liberar.
+ * PLACEHOLDER: HEX exatos e ícones oficiais ainda estão bloqueados pelo
+ * briefing (GDD seção 13 — "puxar do DRIVE"). As cores abaixo são
+ * aproximações de "vermelho, azul-marinho, amarelo / ouro, cinza, prata" só
+ * para destravar a vertical slice — trocar por HEX oficiais quando liberar.
+ * A fonte (public/fonts/FuturaforRedBull-CondBold.ttf, @font-face em
+ * global.css como 'Futura Red Bull Condensed') já é a oficial da marca, não
+ * é mais placeholder. A tela de início usa a família 'Futura Red Bull' sem
+ * o sufixo (pesos Light/Book/Medium/Bold) — ver src/screens/IntroScreen.ts.
  */
 export const THEME = {
   color: {
@@ -26,11 +30,8 @@ export const THEME = {
     success: '#3CB043',
   },
   font: {
-    family: "system-ui, -apple-system, 'Segoe UI', sans-serif",
+    family: "'Futura Red Bull Condensed', system-ui, -apple-system, 'Segoe UI', sans-serif",
     weightBold: 800,
     weightRegular: 500,
   },
 } as const;
-
-/** Palavras-chave impressas nos objetos empilháveis (GDD seção 10, plano A). PLACEHOLDER. */
-export const KEYWORDS = ['FOCO', 'ENERGIA', 'ASAS', 'GARRA', 'RITMO', 'PULSO', 'VIGOR', 'FLOW'];

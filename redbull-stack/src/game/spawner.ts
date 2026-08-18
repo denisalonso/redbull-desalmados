@@ -1,11 +1,10 @@
 import { CONFIG } from '../config.ts';
-import { COMUM_TEMPLATES, LATA_TEMPLATES, buildObjectDef } from '../data/objectLibrary.ts';
+import { COMUM_TEMPLATES, LATA_TEMPLATE, LATA_IMAGENS, buildObjectDef } from '../data/objectLibrary.ts';
 import type { ObjectDef } from '../core/types.ts';
-import type { ObjectTemplate } from '../data/objectLibrary.ts';
 
 /**
- * RN-21: objetos especiais aparecem na proporção PROPORCAO_LATAS.
- * Dentro de cada categoria, uma variante visual é escolhida aleatoriamente.
+ * RN-21: latas aparecem na proporção PROPORCAO_LATAS (1 a cada 4). A primeira
+ * lata aparece garantidamente nos LATA_GARANTIDA_ATE_OBJETO primeiros objetos.
  */
 export class Spawner {
   private count = 0;
@@ -15,19 +14,18 @@ export class Spawner {
 
   next(): ObjectDef {
     this.count += 1;
+    const ehLata = this.decideLata();
+    if (ehLata) this.latasEmitidas += 1;
 
-    const ehLataEspecial = this.decideLata();
-    if (ehLataEspecial) this.latasEmitidas += 1;
+    const template = ehLata
+      ? LATA_TEMPLATE
+      : COMUM_TEMPLATES[Math.floor(this.rng() * COMUM_TEMPLATES.length)];
 
-    const pool = ehLataEspecial ? LATA_TEMPLATES : COMUM_TEMPLATES;
-    const template = this.pick(pool);
-
-    return buildObjectDef(template, `obj-${this.count}`);
-  }
-
-  private pick(templates: readonly ObjectTemplate[]): ObjectTemplate {
-    const index = Math.floor(this.rng() * templates.length);
-    return templates[index];
+    const id = `obj-${this.count}`;
+    const imagemKey = ehLata
+      ? LATA_IMAGENS[Math.floor(this.rng() * LATA_IMAGENS.length)]
+      : undefined;
+    return buildObjectDef(template, id, imagemKey);
   }
 
   private decideLata(): boolean {
@@ -35,7 +33,6 @@ export class Spawner {
       if (this.count === CONFIG.LATA_GARANTIDA_ATE_OBJETO) return true;
       return this.rng() < 1 / CONFIG.PROPORCAO_LATAS;
     }
-
     return this.count % CONFIG.PROPORCAO_LATAS === 0;
   }
 }

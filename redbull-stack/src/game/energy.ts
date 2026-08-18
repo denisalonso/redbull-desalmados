@@ -26,32 +26,19 @@ export function recarregarComLata(energiaAtual: number): number {
   return Math.min(CONFIG.ENERGIA_MAX, energiaAtual + CONFIG.ENERGIA_POR_LATA);
 }
 
-export type NivelDegradacao = 'nitido' | 'borrao-leve' | 'borrao-pesado';
-
-export function nivelDegradacao(energia: number): NivelDegradacao {
-  if (energia >= CONFIG.LIMIAR_BORRAO) return 'nitido';
-  if (energia >= CONFIG.LIMIAR_PISCADA) return 'borrao-leve';
-  return 'borrao-pesado';
-}
-
-/** Interpola o desfoque em px conforme a tabela da seção 3 do GDD. */
-export function borraoPx(energia: number): number {
+/**
+ * RN-28..31: intensidade (0..1) da luz vermelha lateral de aviso — sobe em
+ * duas etapas, cruzando 0,5 em LIMIAR_PISCADA, igual à antiga curva de
+ * desfoque leve/pesado. Contínua (sem piscar) — ver CONFIG.AVISO_OPACIDADE_MAX.
+ */
+export function avisoLateralIntensidade(energia: number): number {
   if (energia >= CONFIG.LIMIAR_BORRAO) return 0;
   if (energia >= CONFIG.LIMIAR_PISCADA) {
     const t = clamp01(
       (CONFIG.LIMIAR_BORRAO - energia) / (CONFIG.LIMIAR_BORRAO - CONFIG.LIMIAR_PISCADA),
     );
-    return lerp(0, CONFIG.BORRAO_MAX_LEVE_PX, t);
+    return lerp(0, 0.5, t);
   }
   const t = clamp01((CONFIG.LIMIAR_PISCADA - energia) / CONFIG.LIMIAR_PISCADA);
-  return lerp(CONFIG.BORRAO_MAX_LEVE_PX, CONFIG.BORRAO_MAX_PESADO_PX, t);
-}
-
-/** RN-29/30: frequência de piscadas sobe conforme energia cai, com teto de segurança em Hz. */
-export function intervaloPiscadaS(energia: number): number {
-  if (energia >= CONFIG.LIMIAR_PISCADA) return Infinity;
-  const t = clamp01((CONFIG.LIMIAR_PISCADA - energia) / CONFIG.LIMIAR_PISCADA);
-  const intervalo = lerp(CONFIG.PISCADA_FREQ_MIN_S, CONFIG.PISCADA_FREQ_MAX_S, t);
-  const intervaloMinimoSeguro = 1 / CONFIG.PISCADA_FREQ_MAX_HZ;
-  return Math.max(intervalo, intervaloMinimoSeguro);
+  return lerp(0.5, 1, t);
 }

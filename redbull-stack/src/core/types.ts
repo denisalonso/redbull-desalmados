@@ -2,18 +2,21 @@
 
 export type ScreenState = 'INICIO' | 'JOGO' | 'NOME' | 'RANKING';
 
+/** Por que a partida terminou — mostrado na tela de game over. */
+export type MotivoFim = 'queda' | 'energia' | 'teto';
+
 export type ObjectClass = 'comum' | 'lata';
 
-/** RN-23: todo objeto declara id, classe, sprite, largura, altura e densidade. */
+/** RN-23: todo objeto declara id, classe, sprite, largura, altura, densidade. */
 export interface ObjectDef {
   id: string;
   classe: ObjectClass;
+  /** Placeholder: cor + palavra-chave em vez de sprite de arte final. */
   sprite: {
-    /** Cor e texto usados como fallback se a imagem ainda não carregou. */
     cor: string;
     label: string;
-    /** URL da imagem PNG usada para desenhar esta variante de lata. */
-    imagemUrl: string;
+    /** Só lata: qual arte (data/objectLibrary.ts LATA_IMAGENS) esse objeto usa. */
+    imagemKey?: string;
   };
   larguraPx: number;
   alturaPx: number;
